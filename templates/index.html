@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Intelligence Dashboard</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <style>
+        html { scroll-behavior: smooth; }
+        body { background-color: #0b1120; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+        .sidebar { background-color: #111827; min-height: 100vh; padding: 25px 15px; border-right: 1px solid #1f2937; }
+        .nav-link { border-radius: 8px; margin-bottom: 5px; transition: all 0.3s; }
+        .nav-link:hover { background-color: #1f2937; color: #3b82f6 !important; }
+        .nav-link.active { background-color: #1e293b; color: #3b82f6 !important; }
+        .card { background-color: #1f2937; border: 1px solid #374151; color: #e2e8f0; margin-bottom: 20px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-radius: 12px; }
+        .btn-primary { background-color: #3b82f6; border: none; font-weight: 600; padding: 10px; }
+        .stat-value { font-size: 1.75rem; font-weight: bold; color: #3b82f6; }
+        .alert-high { color: #ef4444; border-left: 4px solid #ef4444; }
+        .alert-medium { color: #fbbf24; border-left: 4px solid #fbbf24; }
+        .alert-low { color: #10b981; border-left: 4px solid #10b981; }
+        .form-control, .form-select { background-color: #111827; border: 1px solid #374151; color: white; border-radius: 8px; }
+        .form-control:focus, .form-select:focus { background-color: #111827; color: white; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+        .sidebar-icon { width: 20px; text-align: center; margin-right: 12px; color: #9ca3af; }
+        #map { z-index: 1; }
+        .pulse { animation: pulse-red 2s infinite; }
+        @keyframes pulse-red {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 sidebar d-none d-md-block">
+                <div class="mb-5 d-flex align-items-center px-3">
+                    <div class="bg-primary rounded-circle p-2 me-2">
+                        <i class="fas fa-traffic-light text-white"></i>
+                    </div>
+                    <h4 class="mb-0 text-white fw-bold" style="letter-spacing: 1px;">FLOCK</h4>
+                </div>
+
+                <div class="text-white-50 small text-uppercase mb-3 px-3 fw-bold" style="font-size: 0.7rem;">Dashboard Features</div>
+                <ul class="nav flex-column">
+                    <li class="nav-item"><a href="#prediction-section" class="nav-link text-white small d-flex align-items-center active"><i class="fas fa-brain sidebar-icon"></i> Real-time Traffic Prediction</a></li>
+                    <li class="nav-item"><a href="#segment-section" class="nav-link text-white-50 small d-flex align-items-center"><i class="fas fa-map-marker-alt sidebar-icon"></i> Road Segment Selection</a></li>
+                    <li class="nav-item"><a href="#date-time-picker" class="nav-link text-white-50 small d-flex align-items-center"><i class="fas fa-calendar-alt sidebar-icon"></i> Date & Time Picker</a></li>
+                    <li class="nav-item"><a href="#weather-event" class="nav-link text-white-50 small d-flex align-items-center"><i class="fas fa-cloud-sun-rain sidebar-icon"></i> Weather & Event Inputs</a></li>
+                    <li class="nav-item"><a href="#heatmap-section" class="nav-link text-white-50 small d-flex align-items-center"><i class="fas fa-map-marked-alt sidebar-icon"></i> Traffic Heatmap Visualization</a></li>
+                    <li class="nav-item"><a href="#alert-box" class="nav-link text-white-50 small d-flex align-items-center"><i class="fas fa-exclamation-triangle sidebar-icon"></i> Prediction & Congestion Alert</a></li>
+                    <li class="nav-item"><a href="#trends-section" class="nav-link text-white-50 small d-flex align-items-center"><i class="fas fa-chart-bar sidebar-icon"></i> Historical Trends & Analytics</a></li>
+                    <li class="nav-item"><a href="/api/download_report" class="nav-link text-white-50 small d-flex align-items-center"><i class="fas fa-file-download sidebar-icon"></i> Download Reports</a></li>
+                </ul>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold">Data Analysis</h2>
+                    <div class="d-flex align-items-center">
+                        <span class="text-white-50 me-3 small">Last updated: Just now</span>
+                        <div id="health-badge"><span class="badge bg-success bg-opacity-10 text-success border border-success">System Healthy</span></div>
+                    </div>
+                </div>
+
+                <!-- Stats Row -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card p-3">
+                            <div class="text-white-50 small mb-1">Avg Traffic Demand</div>
+                            <div class="stat-value" id="stat-avg">-</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3">
+                            <div class="text-white-50 small mb-1">Total Samples</div>
+                            <div class="stat-value" id="stat-total">-</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3">
+                            <div class="text-white-50 small mb-1">Current Weather</div>
+                            <div class="stat-value text-info" id="stat-weather">Sunny</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3">
+                            <div class="text-white-50 small mb-1">Active Sensors</div>
+                            <div class="stat-value text-success">1,248</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Prediction Form -->
+                    <div class="col-md-5" id="prediction-section">
+                        <div class="card p-4">
+                            <h5 class="mb-4 d-flex align-items-center"><i class="fas fa-bolt text-warning me-2"></i>Real-time Prediction</h5>
+
+                            <div class="mb-3" id="segment-section">
+                                <label for="segment-select" class="form-label text-white-50 small">Road Segment Selection</label>
+                                <select class="form-select" id="segment-select">
+                                    <option>Loading...</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3" id="date-time-picker">
+                                <label class="form-label text-white-50 small">Date & Time Picker</label>
+                                <div class="input-group">
+                                    <input type="date" class="form-control" id="date-input" value="2023-10-27">
+                                    <input type="number" class="form-control" id="hour-input" value="12" min="0" max="23">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3" id="weather-event">
+                                <div class="col">
+                                    <label for="weather-input" class="form-label text-white-50 small">Weather Input</label>
+                                    <select class="form-select" id="weather-input">
+                                        <option value="Sunny">Sunny</option>
+                                        <option value="Rain">Rain</option>
+                                        <option value="Heavy Rain">Heavy Rain</option>
+                                        <option value="Cloudy">Cloudy</option>
+                                    </select>
+                                </div>
+                                <div class="col">
+                                    <label for="event-input" class="form-label text-white-50 small">Event Input</label>
+                                    <select class="form-select" id="event-input">
+                                        <option value="None">Normal Day</option>
+                                        <option value="Holiday">Holiday</option>
+                                        <option value="Accident">Accident Reported</option>
+                                        <option value="Roadwork">Road Construction</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="speed-input" class="form-label text-white-50 small">Avg Historical Speed (km/h)</label>
+                                <input type="number" class="form-control" id="speed-input" value="60">
+                            </div>
+
+                            <button class="btn btn-primary w-100 py-3 shadow-sm" onclick="runPrediction()">
+                                <i class="fas fa-magic me-2"></i> Predict Traffic
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Prediction Result & Alerts -->
+                    <div class="col-md-7">
+                        <div class="card p-4 h-100">
+                            <h5 class="mb-4">Live Analysis Results</h5>
+                            <div id="prediction-output" class="text-center py-5">
+                                <div class="display-1 text-white-10 mb-2"><i class="fas fa-chart-line"></i></div>
+                                <p class="text-white-50">Configure parameters and run prediction</p>
+                            </div>
+                            <div id="alert-box"></div>
+                            <div id="risk-box"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Visualization Row -->
+                <div class="row mt-4">
+                    <!-- Heatmap visualization -->
+                    <div class="col-md-7" id="heatmap-section">
+                        <div class="card p-4">
+                            <h5 class="mb-4 d-flex justify-content-between align-items-center">
+                                <span><i class="fas fa-map-marked-alt me-2 text-primary"></i>Traffic Heatmap Visualization</span>
+                                <span class="badge bg-danger pulse small" style="font-size: 0.6rem;">LIVE MONITOR</span>
+                            </h5>
+                            <div id="map" class="rounded mb-3 border border-secondary" style="height: 350px; background-color: #111827;"></div>
+                            <div id="geo-monitor" class="small" style="max-height: 80px; overflow-y: auto;">
+                                <p class="text-white-50">Syncing with satellite data...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Route & Insights -->
+                    <div class="col-md-5">
+                        <div class="card p-4">
+                            <h5 class="mb-3 text-info"><i class="fas fa-directions me-2"></i>Route Optimizer</h5>
+                            <p class="text-white-50 small mb-3">Compare multiple segments for optimal routing.</p>
+                            <div class="mb-3">
+                                <input type="text" id="route-segments" class="form-control" placeholder="e.g., RS-0175, RS-0134">
+                            </div>
+                            <button class="btn btn-outline-info w-100" onclick="getRecommendation()">Compare Segments</button>
+                            <div id="recommendation-result" class="mt-3"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trends Row -->
+                <div class="row mt-4" id="trends-section">
+                    <div class="col-12">
+                        <div class="card p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h5><i class="fas fa-chart-area me-2 text-success"></i>Historical Trends & Analytics</h5>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary active" onclick="updateTrends('24h', this)">24h</button>
+                                    <button class="btn btn-outline-secondary" onclick="updateTrends('7d', this)">7d</button>
+                                    <button class="btn btn-outline-secondary" onclick="updateTrends('30d', this)">30d</button>
+                                </div>
+                            </div>
+                            <div class="chart-container" style="position: relative; height:300px; width:100%">
+                                <canvas id="trendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fetch Road Segments on Load
+        fetch('/api/segments').then(res => res.json()).then(data => {
+            const select = document.getElementById('segment-select');
+            select.innerHTML = '';
+            data.segments.slice(0, 20).forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s; opt.innerText = s;
+                select.appendChild(opt);
+            });
+        });
+
+        // Fetch Analytics
+        fetch('/api/analytics').then(res => res.json()).then(data => {
+            document.getElementById('stat-avg').innerText = Math.round(data.analytics.avg_traffic);
+            document.getElementById('stat-total').innerText = data.analytics.total_records.toLocaleString();
+        });
+
+        // Initialize Map
+        const map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO'
+        }).addTo(map);
+
+        let heatLayer = L.heatLayer([], {radius: 25, blur: 15, maxZoom: 17}).addTo(map);
+
+        // Fetch Geo-Spatial Data
+        fetch('/api/geo_data').then(res => res.json()).then(data => {
+            const monitor = document.getElementById('geo-monitor');
+            monitor.innerHTML = '';
+
+            if(data.data && data.data.length > 0) {
+                const heatPoints = data.data.map(item => [
+                    item.Latitude,
+                    item.Longitude,
+                    item.Vehicle_Count_Traffic_Demand / 500 // Normalize intensity
+                ]);
+
+                heatLayer.setLatLngs(heatPoints);
+
+                // Center map on data
+                const bounds = L.latLngBounds(data.data.map(i => [i.Latitude, i.Longitude]));
+                map.fitBounds(bounds);
+
+                data.data.slice(0, 5).forEach(item => {
+                    monitor.innerHTML += `<div class="mb-1 border-bottom border-secondary pb-1">
+                        <span class="text-primary">${item.Latitude.toFixed(4)}, ${item.Longitude.toFixed(4)}</span>:
+                        <span class="text-success">${Math.round(item.Vehicle_Count_Traffic_Demand)} vehicles</span>
+                    </div>`;
+                });
+            }
+        });
+
+        // Initialize Trend Chart
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        const trendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Avg Traffic Demand',
+                    data: [],
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#374151' }, ticks: { color: '#9ca3af' } },
+                    x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+                }
+            }
+        });
+
+        fetch('/api/trends').then(res => res.json()).then(data => {
+            if(data.status === 'success') {
+                trendChart.data.labels = data.labels;
+                trendChart.data.datasets[0].data = data.data;
+                trendChart.update();
+            }
+        });
+
+        function updateTrends(range, btn) {
+            // Update buttons UI
+            document.querySelectorAll('#trends-section .btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            fetch(`/api/trends?range=${range}`).then(res => res.json()).then(data => {
+                if(data.status === 'success') {
+                    trendChart.data.labels = data.labels;
+                    trendChart.data.datasets[0].data = data.data;
+                    trendChart.update();
+                }
+            });
+        }
+
+        async function runPrediction() {
+            const out = document.getElementById('prediction-output');
+            const alertBox = document.getElementById('alert-box');
+            const riskBox = document.getElementById('risk-box');
+            out.innerHTML = '<div class="spinner-border text-primary"></div>';
+
+            const payload = {
+                Road_Segment_ID: document.getElementById('segment-select').value,
+                Weather_Condition: document.getElementById('weather-input').value,
+                Event: document.getElementById('event-input').value,
+                Date: document.getElementById('date-input').value,
+                Hour: parseInt(document.getElementById('hour-input').value),
+                Historical_Average_Speed: parseFloat(document.getElementById('speed-input').value),
+                prev_hour_traffic: 100 // Dummy for demo
+            };
+
+            const res = await fetch('/api/predict', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            if (data.status === 'success') {
+                const val = Math.round(data.prediction);
+                out.innerHTML = `
+                    <div class="display-4 font-weight-bold text-primary">${val}</div>
+                    <div class="text-white-50">Predicted Vehicle Count</div>
+                `;
+
+                let alertClass = 'alert-low';
+                if(data.congestion_level === 'High') alertClass = 'alert-high';
+                if(data.congestion_level === 'Medium') alertClass = 'alert-medium';
+
+                alertBox.innerHTML = `
+                    <div class="alert ${alertClass} bg-dark mt-3">
+                        <strong><i class="fas fa-exclamation-triangle me-2"></i>Congestion Alert:</strong>
+                        ${data.congestion_level} Traffic Expected.
+                    </div>
+                `;
+
+                let riskClass = 'text-success';
+                if(data.accident_risk === 'High') riskClass = 'text-danger';
+                if(data.accident_risk === 'Moderate') riskClass = 'text-warning';
+
+                riskBox.innerHTML = `
+                    <div class="mt-2 text-center">
+                        <small class="text-white-50">Accident Risk Status:</small>
+                        <span class="${riskClass} fw-bold">${data.accident_risk}</span>
+                    </div>
+                `;
+            }
+        }
+
+        async function getRecommendation() {
+            const input = document.getElementById('route-segments').value;
+            const segments = input.split(',').map(s => s.trim());
+            const res = await fetch('/api/recommend_route', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({segments: segments})
+            });
+            const data = await res.json();
+            const resDiv = document.getElementById('recommendation-result');
+            if(data.status === 'success') {
+                resDiv.innerHTML = `<div class="alert alert-success mt-2 py-2 small">
+                    Best Route: <strong>${data.recommended.segment}</strong>
+                    (Avg Demand: ${Math.round(data.recommended.score)})
+                </div>`;
+            }
+        }
+
+        // Sidebar Navigation & Active State
+        document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                const href = this.getAttribute('href');
+                if (href && href.startsWith('#')) {
+                    e.preventDefault();
+                    const targetId = href.substring(1);
+                    const targetElement = document.getElementById(targetId);
+
+                    if (targetElement) {
+                        // Smooth Scroll
+                        window.scrollTo({
+                            top: targetElement.offsetTop - 100,
+                            behavior: 'smooth'
+                        });
+
+                        // Update UI state
+                        document.querySelectorAll('.sidebar .nav-link').forEach(l => {
+                            l.classList.remove('active', 'text-white');
+                            l.classList.add('text-white-50');
+                        });
+                        this.classList.add('active', 'text-white');
+                        this.classList.remove('text-white-50');
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
