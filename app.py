@@ -20,12 +20,14 @@ MODEL_PATH = 'models/ensemble_model.pkl'
 ENCODERS_PATH = 'models/label_encoders.pkl'
 DATA_PATH = 'data/traffic_prediction_dataset.csv'
 
-# Define feature names as used in training (Model expects 15 features)
+# Define feature names as used in training (Model expects 26 features)
 feature_names = [
     'Road_Segment_ID', 'Historical_Average_Speed', 'Temperature_C', 'Humidity_Percent',
     'Rainfall_mm', 'Weather_Condition', 'Visibility_km', 'Wind_Speed_kmph',
     'Road_Type', 'Number_of_Lanes', 'Speed_Limit_kmph', 'Traffic_Signals',
-    'Nearby_Intersections', 'Event_Type', 'Event_Flag'
+    'Nearby_Intersections', 'Event_Type', 'Event_Flag', 'Hour', 'DayOfWeek',
+    'Month', 'IsWeekend', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos',
+    'prev_hour_traffic', 'prev_2hour_traffic', 'rolling_mean_3h'
 ]
 
 model = None
@@ -70,9 +72,21 @@ def predict():
 
         # Add derived features (matches prepare_data in notebook)
         now = datetime.now()
-        h = int(data.get('Hour', now.hour))
-        dow = int(data.get('DayOfWeek', now.weekday()))
-        month = int(data.get('Month', now.month))
+        date_str = data.get('Date')
+        if date_str:
+            try:
+                dt = datetime.strptime(date_str, '%Y-%m-%d')
+                h = int(data.get('Hour', dt.hour))
+                dow = dt.weekday()
+                month = dt.month
+            except:
+                h = int(data.get('Hour', now.hour))
+                dow = int(data.get('DayOfWeek', now.weekday()))
+                month = int(data.get('Month', now.month))
+        else:
+            h = int(data.get('Hour', now.hour))
+            dow = int(data.get('DayOfWeek', now.weekday()))
+            month = int(data.get('Month', now.month))
 
         input_df['Hour'] = h
         input_df['DayOfWeek'] = dow
@@ -83,6 +97,16 @@ def predict():
         input_df['hour_cos'] = np.cos(2 * np.pi * h / 24)
         input_df['day_sin'] = np.sin(2 * np.pi * dow / 7)
         input_df['day_cos'] = np.cos(2 * np.pi * dow / 7)
+
+        # Handle Event Flag logic
+        event_type = data.get('Event_Type', 'None')
+        input_df['Event_Type'] = event_type
+        input_df['Event_Flag'] = 1 if event_type != 'None' else 0
+
+        # Handle lag features
+        input_df['prev_hour_traffic'] = float(data.get('prev_hour_traffic', 150))
+        input_df['prev_2hour_traffic'] = float(data.get('prev_2hour_traffic', 150))
+        input_df['rolling_mean_3h'] = float(data.get('rolling_mean_3h', 150))
 
         # Fill missing features with 0
         for col in feature_names:

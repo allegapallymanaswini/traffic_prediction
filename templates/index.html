@@ -332,11 +332,13 @@
             const payload = {
                 Road_Segment_ID: document.getElementById('segment-select').value,
                 Weather_Condition: document.getElementById('weather-input').value,
-                Event: document.getElementById('event-input').value,
+                Event_Type: document.getElementById('event-input').value,
                 Date: document.getElementById('date-input').value,
                 Hour: parseInt(document.getElementById('hour-input').value),
                 Historical_Average_Speed: parseFloat(document.getElementById('speed-input').value),
-                prev_hour_traffic: 100 // Dummy for demo
+                prev_hour_traffic: 150,
+                prev_2hour_traffic: 150,
+                rolling_mean_3h: 150
             };
 
             const res = await fetch('/api/predict', {
